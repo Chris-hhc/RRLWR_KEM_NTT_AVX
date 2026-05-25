@@ -221,9 +221,8 @@ Kyber-only supporting kernels from the same run:
 
 On this Broadwell-EP machine, Kyber's 16-bit NTT kernels are substantially
 faster than the current RRLWR 32-bit NTT kernels. RRLWR sampling is competitive
-or faster for the larger `A` sampling cases, and `poly_basemul_add32` is faster
-than Kyber's closest accumulation benchmark, but the full matrix-vector path is
-dominated by RRLWR's 32-bit NTT, inverse NTT, and dot kernels.
+or faster for the larger `A` sampling cases, but the full matrix-vector path is
+dominated by RRLWR's 32-bit NTT, inverse NTT, and Awin dot kernels.
 
 For the current NTT AVX2 implementation, the largest remaining cycle sinks are:
 
@@ -239,6 +238,35 @@ For the current NTT AVX2 implementation, the largest remaining cycle sinks are:
 This appendix gives a short description of the small kernels used in the
 breakdown tables. The descriptions focus on what each benchmarked operation
 does in the current speed harness.
+
+### RRLWR `avxReal` Path Status
+
+Most RRLWR rows in the kernel tables are real `make avxReal` operations from
+the PKE/KEM call graph. A few low-level rows are microbenchmarks kept for
+comparison against Kyber's primitive kernels.
+
+| Kernel row | `avxReal` PKE/KEM path status |
+| --- | --- |
+| `sample` | Real composite path in keygen/encrypt. |
+| `sample_Awin(A)` | Real path in keygen/encrypt through `ring_uniform_Awin`. |
+| `sample_secret(s)` | Real path in keygen/encrypt through `ring_uniform`. |
+| `poly_ntt32` | Real primitive, called inside Awin sampling/preparation and vector NTT paths. |
+| `poly_invntt32` | Real primitive, called inside `ring_mul_Awin_invntt_*`. |
+| `poly_basemul32` | Microbenchmark only for `avxReal`; not on the current Awin PKE/KEM fast path. |
+| `poly_basemul32_avx(Awin prepare)` | Real path, used by Awin twist-row preparation. |
+| `poly_basemul_add32(accumulate)` | Microbenchmark/proxy only for current Awin PKE/KEM; the real fast path uses fused row-dot assembly instead of calling this symbol. |
+| `poly_add32` | Microbenchmark/ref-path primitive; not on the current Awin PKE/KEM fast path. |
+| `poly_add` | Microbenchmark primitive; not on the current Awin PKE/KEM fast path. |
+| `poly_sub32` | Microbenchmark/ref-path primitive; not on the current Awin PKE/KEM fast path. |
+| `ring_ntt32(s)` | Real path inside `ring_mul_Awin_round_xtoy_32` and `ring_mul_Awin_reduce_pow2_32`. |
+| `ring_to_Awin_ncoeffs(ell)` | Real decrypt path. |
+| `ring_unpack_Awin_ncoeffs(ell)` | Real encrypt path for unpacking the public-key vector into Awin form. |
+| `ring_Awin_dot32(full, ntt-domain)` | Real operation. The benchmark isolates the same row-tile assembly dispatcher used inside `ring_mul_Awin_ntt_dot32`. |
+| `ring_Awin_dot32(ell, ntt-domain)` | Real operation for the `ell` output path, isolated in the benchmark. |
+| `ring_Awin_invntt_round_xtoy_32(full)` | Real internal stage called by `ring_Awin_round_xtoy_32`. |
+| `ring_Awin_round_xtoy_32(full)` | Real keygen/encrypt matrix-vector path. |
+| `ring_Awin_invntt_reduce_pow2_32(ell)` | Real encrypt second-product path when the secret vector is already in NTT domain. |
+| `ring_Awin_reduce_pow2_32(ell)` | Real decrypt matrix-vector path. |
 
 ### RRLWR Kernels
 
