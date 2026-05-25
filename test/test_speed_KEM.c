@@ -126,10 +126,191 @@ static void print_stage_results(const char *label,
   printf("\n");
 }
 
+static void print_plain_stage_results(const char *label,
+                                      const uint64_t *stage_cycles,
+                                      size_t n)
+{
+  printf("%s\n", label);
+  printf("median: %llu cycles/ticks\n",
+         (unsigned long long)median_local(stage_cycles, n));
+  printf("average: %llu cycles/ticks\n",
+         (unsigned long long)average_local(stage_cycles, n));
+  printf("\n");
+}
+
+#define MEASURE_PLAIN_STAGE(label, statement) do { \
+  for(unsigned int i = 0; i < NUMBER_OF_TESTS; i++) { \
+    uint64_t start = cpucycles(); \
+    statement; \
+    t[i] = cpucycles() - start - overhead; \
+  } \
+  print_plain_stage_results(label, t, NUMBER_OF_TESTS); \
+} while(0)
+
+#ifndef RRLWR_DISABLE_NTT_AVX
+void ring_mul_Awin_row_avx(poly *r,
+                           const poly *row,
+                           const ring_element *b,
+                           int k,
+                           int32_t prime,
+                           int32_t primeinv);
+void ring_mul_Awin_row_k5_avx(poly *r,
+                              const poly *row,
+                              const ring_element *b,
+                              int k,
+                              int32_t prime,
+                              int32_t primeinv);
+void ring_mul_Awin_row_k9_avx(poly *r,
+                              const poly *row,
+                              const ring_element *b,
+                              int k,
+                              int32_t prime,
+                              int32_t primeinv);
+void ring_mul_Awin_row_k17_avx(poly *r,
+                               const poly *row,
+                               const ring_element *b,
+                               int k,
+                               int32_t prime,
+                               int32_t primeinv);
+void ring_mul_Awin_2rows_rev_k5_avx(poly *r,
+                                    const poly *row,
+                                    const ring_element *b,
+                                    int32_t prime,
+                                    int32_t primeinv);
+void ring_mul_Awin_2rows_rev_k9_avx(poly *r,
+                                    const poly *row,
+                                    const ring_element *b,
+                                    int32_t prime,
+                                    int32_t primeinv);
+void ring_mul_Awin_2rows_rev_k17_avx(poly *r,
+                                     const poly *row,
+                                     const ring_element *b,
+                                     int32_t prime,
+                                     int32_t primeinv);
+void ring_mul_Awin_4rows_rev_k5_avx(poly *r,
+                                    const poly *row,
+                                    const ring_element *b,
+                                    int32_t prime,
+                                    int32_t primeinv);
+void ring_mul_Awin_4rows_rev_k9_avx(poly *r,
+                                    const poly *row,
+                                    const ring_element *b,
+                                    int32_t prime,
+                                    int32_t primeinv);
+void ring_mul_Awin_4rows_rev_k17_avx(poly *r,
+                                     const poly *row,
+                                     const ring_element *b,
+                                     int32_t prime,
+                                     int32_t primeinv);
+void ring_mul_Awin_5rows_rev_k5_avx(poly *r,
+                                    const poly *row,
+                                    const ring_element *b,
+                                    int32_t prime,
+                                    int32_t primeinv);
+void ring_mul_Awin_5rows_rev_k9_avx(poly *r,
+                                    const poly *row,
+                                    const ring_element *b,
+                                    int32_t prime,
+                                    int32_t primeinv);
+void ring_mul_Awin_5rows_rev_k17_avx(poly *r,
+                                     const poly *row,
+                                     const ring_element *b,
+                                     int32_t prime,
+                                     int32_t primeinv);
+#endif
+
+static void speed_ring_mul_Awin_ntt_dot32_kernel(poly *r,
+                                                 const ring_element_Awin *a,
+                                                 ring_element *b,
+                                                 int ncoeffs,
+                                                 int32_t prime,
+                                                 int32_t primeinv)
+{
+#ifndef RRLWR_DISABLE_NTT_AVX
+#if RRLWR_K == 5
+  int out = 0;
+  for(; out + 4 < ncoeffs; out += 5) {
+    ring_mul_Awin_5rows_rev_k5_avx(&r[out], &a->x[ncoeffs - 5 - out],
+                                   b, prime, primeinv);
+  }
+  for(; out + 3 < ncoeffs; out += 4) {
+    ring_mul_Awin_4rows_rev_k5_avx(&r[out], &a->x[ncoeffs - 4 - out],
+                                   b, prime, primeinv);
+  }
+  for(; out + 1 < ncoeffs; out += 2) {
+    ring_mul_Awin_2rows_rev_k5_avx(&r[out], &a->x[ncoeffs - 2 - out],
+                                   b, prime, primeinv);
+  }
+  if(out < ncoeffs) {
+    ring_mul_Awin_row_k5_avx(&r[out], &a->x[0], b, RRLWR_K, prime, primeinv);
+  }
+#elif RRLWR_K == 9
+  int out = 0;
+  for(; out + 4 < ncoeffs; out += 5) {
+    ring_mul_Awin_5rows_rev_k9_avx(&r[out], &a->x[ncoeffs - 5 - out],
+                                   b, prime, primeinv);
+  }
+  for(; out + 3 < ncoeffs; out += 4) {
+    ring_mul_Awin_4rows_rev_k9_avx(&r[out], &a->x[ncoeffs - 4 - out],
+                                   b, prime, primeinv);
+  }
+  for(; out + 1 < ncoeffs; out += 2) {
+    ring_mul_Awin_2rows_rev_k9_avx(&r[out], &a->x[ncoeffs - 2 - out],
+                                   b, prime, primeinv);
+  }
+  if(out < ncoeffs) {
+    ring_mul_Awin_row_k9_avx(&r[out], &a->x[0], b, RRLWR_K, prime, primeinv);
+  }
+#elif RRLWR_K == 17
+  int out = 0;
+  for(; out + 4 < ncoeffs; out += 5) {
+    ring_mul_Awin_5rows_rev_k17_avx(&r[out], &a->x[ncoeffs - 5 - out],
+                                    b, prime, primeinv);
+  }
+  for(; out + 3 < ncoeffs; out += 4) {
+    ring_mul_Awin_4rows_rev_k17_avx(&r[out], &a->x[ncoeffs - 4 - out],
+                                    b, prime, primeinv);
+  }
+  for(; out + 1 < ncoeffs; out += 2) {
+    ring_mul_Awin_2rows_rev_k17_avx(&r[out], &a->x[ncoeffs - 2 - out],
+                                    b, prime, primeinv);
+  }
+  if(out < ncoeffs) {
+    ring_mul_Awin_row_k17_avx(&r[out], &a->x[0], b, RRLWR_K, prime, primeinv);
+  }
+#else
+  for(int out = 0; out < ncoeffs; out++) {
+    const poly *row = &a->x[ncoeffs - 1 - out];
+
+    ring_mul_Awin_row_avx(&r[out], row, b, RRLWR_K, prime, primeinv);
+  }
+#endif
+#else
+  poly tmp;
+  int row_min = RRLWR_K - ncoeffs;
+
+  for(int i = RRLWR_K - 1; i >= row_min; i--) {
+    int out = i - row_min;
+    const poly *row = &a->x[RRLWR_K - 1 - i];
+
+    for(unsigned int j = 0; j < RRLWR_N; j++) {
+      r[out].coeffs[j] = 0;
+    }
+
+    for(int j = 0; j < RRLWR_K; j++) {
+      poly_basemul32(&tmp, (poly *)&row[j], &b->x[j], prime, primeinv);
+      poly_add32(&r[out], &r[out], &tmp, prime);
+    }
+  }
+#endif
+}
+
 int main() {
 
   poly f, g, h;
-  ring_element r, a, s;
+  ring_element r, a, s, s_ntt, s_work;
+  ring_element_Awin aw, bp_aw;
+  poly vp[RRLWR_PKE_ELL];
   unsigned char seedA[RRLWR_PKE_SEED_A_LEN];
   unsigned char seedS[RRLWR_SEED_S_LEN];
   unsigned char seedSp[RRLWR_SEED_S_LEN];
@@ -151,80 +332,133 @@ int main() {
 
   GENERATE_RANDOM_BYTES(seedA, RRLWR_PKE_SEED_A_LEN, &drng_algorithm);
   GENERATE_RANDOM_BYTES(seedS, RRLWR_SEED_S_LEN, &drng_algorithm);
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    ring_uniform(&a, RRLWR_PKE_LOGQ, seedA, RRLWR_PKE_SEED_A_LEN);
+  GENERATE_RANDOM_BYTES(seedSp, RRLWR_SEED_S_LEN, &drng_algorithm);
+  GENERATE_RANDOM_BYTES(m, RRLWR_PKE_MESSAGE_LEN, &drng_algorithm);
+
+  pke_keygen(pk, sk, seedA, seedS);
+  pke_encrypt(ct, pk, m, seedSp);
+  ring_uniform_Awin(&aw, RRLWR_PKE_LOGQ, seedA, RRLWR_PKE_SEED_A_LEN,
+                    RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                    RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
+                    rrlwr_pke_zetas);
+  ring_uniform(&s, RRLWR_PKE_LOG_ETA+1, seedS, RRLWR_SEED_S_LEN);
+  ring_uniform(&a, RRLWR_PKE_LOGP, seedA, RRLWR_PKE_SEED_A_LEN);
+  s_ntt = s;
+  ring_ntt32(&s_ntt, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, rrlwr_pke_zetas);
+  ring_to_Awin_ncoeffs(&bp_aw, &a, RRLWR_PKE_ELL,
+                       RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                       RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
+                       rrlwr_pke_zetas);
+
+  MEASURE_PLAIN_STAGE("sample: ", {
+    ring_uniform_Awin(&aw, RRLWR_PKE_LOGQ, seedA, RRLWR_PKE_SEED_A_LEN,
+                      RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                      RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
+                      rrlwr_pke_zetas);
     ring_uniform(&s, RRLWR_PKE_LOG_ETA+1, seedS, RRLWR_SEED_S_LEN);
-    t[i] = cpucycles();
-  }
-  print_results("sample: ", t, NUMBER_OF_TESTS);
+  });
+
+  MEASURE_PLAIN_STAGE("sample_Awin(A): ",
+    ring_uniform_Awin(&aw, RRLWR_PKE_LOGQ, seedA, RRLWR_PKE_SEED_A_LEN,
+                      RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                      RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
+                      rrlwr_pke_zetas));
+
+  MEASURE_PLAIN_STAGE("sample_secret(s): ",
+    ring_uniform(&s, RRLWR_PKE_LOG_ETA+1, seedS, RRLWR_SEED_S_LEN));
+
+  MEASURE_PLAIN_STAGE("poly_ntt32: ",
+    poly_ntt32(&f, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, rrlwr_pke_zetas));
+
+  MEASURE_PLAIN_STAGE("poly_invntt32: ",
+    poly_invntt32(&f, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                  RRLWR_NTTINV_FINALCONST, rrlwr_pke_zetas));
+
+  MEASURE_PLAIN_STAGE("poly_basemul32: ",
+    poly_basemul32(&h, &f, &g, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV));
+
+#ifndef RRLWR_DISABLE_NTT_AVX
+  MEASURE_PLAIN_STAGE("poly_basemul32_avx(Awin prepare): ",
+    poly_basemul32_avx(&h, &f, &g, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV));
+
+  MEASURE_PLAIN_STAGE("poly_basemul_add32(accumulate): ",
+    poly_basemul_add32(&h, &f, &g, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV));
+#endif
+
+  MEASURE_PLAIN_STAGE("poly_add32: ",
+    poly_add32(&h, &f, &g, RRLWR_PKE_PRIME));
+
+  MEASURE_PLAIN_STAGE("poly_add: ",
+    poly_add(&h, &f, &g));
+
+  MEASURE_PLAIN_STAGE("poly_sub32: ",
+    poly_sub32(&h, &f, &g, RRLWR_PKE_PRIME));
+
+  MEASURE_PLAIN_STAGE("ring_ntt32(s): ",
+    ring_ntt32(&s_ntt, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, rrlwr_pke_zetas));
+
+  MEASURE_PLAIN_STAGE("ring_to_Awin_ncoeffs(ell): ",
+    ring_to_Awin_ncoeffs(&bp_aw, &a, RRLWR_PKE_ELL,
+                         RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                         RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
+                         rrlwr_pke_zetas));
+
+  MEASURE_PLAIN_STAGE("ring_unpack_Awin_ncoeffs(ell): ",
+    ring_unpack_Awin_ncoeffs(&bp_aw, pk + RRLWR_PKE_SEED_A_LEN,
+                             RRLWR_PKE_LOGP, RRLWR_PKE_ELL,
+                             RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                             RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
+                             rrlwr_pke_zetas));
+
+  s_ntt = s;
+  ring_ntt32(&s_ntt, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, rrlwr_pke_zetas);
+
+  MEASURE_PLAIN_STAGE("ring_Awin_dot32(full, ntt-domain): ",
+    speed_ring_mul_Awin_ntt_dot32_kernel(r.x, &aw, &s_ntt, RRLWR_K,
+                                         RRLWR_PKE_PRIME,
+                                         RRLWR_PKE_PRIMEINV));
+
+  MEASURE_PLAIN_STAGE("ring_Awin_dot32(ell, ntt-domain): ",
+    speed_ring_mul_Awin_ntt_dot32_kernel(vp, &bp_aw, &s_ntt, RRLWR_PKE_ELL,
+                                         RRLWR_PKE_PRIME,
+                                         RRLWR_PKE_PRIMEINV));
+
+  MEASURE_PLAIN_STAGE("ring_Awin_invntt_round_xtoy_32(full): ",
+    ring_mul_Awin_invntt_round_xtoy_32(r.x, &aw, &s_ntt, RRLWR_K,
+                                       RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                                       RRLWR_NTTINV_FINALCONST,
+                                       RRLWR_PKE_LOGQ, RRLWR_PKE_LOGP,
+                                       rrlwr_pke_zetas));
 
   for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    poly_ntt32(&f, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, rrlwr_pke_zetas);
-    t[i] = cpucycles();
-  }
-  print_results("poly_ntt32: ", t, NUMBER_OF_TESTS);
-
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    poly_invntt32(&f, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, RRLWR_NTTINV_FINALCONST, rrlwr_pke_zetas);
-    t[i] = cpucycles();
-  }
-  print_results("poly_invntt32: ", t, NUMBER_OF_TESTS);
-
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    poly_basemul32(&h, &f, &g, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV);
-    t[i] = cpucycles();
-  }
-  print_results("poly_basemul32: ", t, NUMBER_OF_TESTS);
-
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    poly_add32(&h, &f, &g, RRLWR_PKE_PRIME);
-    t[i] = cpucycles();
-  }
-  print_results("poly_add32: ", t, NUMBER_OF_TESTS);
-
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    for(unsigned int j=0;j<RRLWR_N;j++) {
-      h.coeffs[j] = f.coeffs[j] + g.coeffs[j];
-    }
-    t[i] = cpucycles();
-  }
-  print_results("poly_add: ", t, NUMBER_OF_TESTS);
-
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
-    poly_sub32(&h, &f, &g, RRLWR_PKE_PRIME);
-    t[i] = cpucycles();
-  }
-  print_results("poly_sub32: ", t, NUMBER_OF_TESTS);
-
-  for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
+    s_work = s;
     uint64_t start = cpucycles();
-    uint64_t ntt_start = poly_ntt32_cycles_total();
-    uint64_t calls_start = poly_ntt32_cycles_calls();
-    uint64_t intt_start = poly_invntt32_cycles_total();
-    uint64_t intt_calls_start = poly_invntt32_cycles_calls();
-    ring_mul32(r.x, &a, &s, RRLWR_K, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, RRLWR_NTTINV_FINALCONST, RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME, rrlwr_pke_zetas);
+    ring_mul_Awin_round_xtoy_32(r.x, &aw, &s_work, RRLWR_K,
+                                RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                                RRLWR_NTTINV_FINALCONST,
+                                RRLWR_PKE_LOGQ, RRLWR_PKE_LOGP,
+                                rrlwr_pke_zetas);
     t[i] = cpucycles() - start - overhead;
-    ntt_t[i] = poly_ntt32_cycles_total() - ntt_start;
-    ntt_calls[i] = poly_ntt32_cycles_calls() - calls_start;
-    intt_t[i] = poly_invntt32_cycles_total() - intt_start;
-    intt_calls[i] = poly_invntt32_cycles_calls() - intt_calls_start;
   }
-  print_stage_results("ring_mul32 (full): ", t, ntt_t, ntt_calls, intt_t, intt_calls, NUMBER_OF_TESTS);
+  print_plain_stage_results("ring_Awin_round_xtoy_32(full): ", t, NUMBER_OF_TESTS);
+
+  MEASURE_PLAIN_STAGE("ring_Awin_invntt_reduce_pow2_32(ell): ",
+    ring_mul_Awin_invntt_reduce_pow2_32(vp, &bp_aw, &s_ntt, RRLWR_PKE_ELL,
+                                        RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                                        RRLWR_NTTINV_FINALCONST,
+                                        RRLWR_PKE_LOGP,
+                                        rrlwr_pke_zetas));
 
   for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
+    s_work = s;
     uint64_t start = cpucycles();
-    uint64_t ntt_start = poly_ntt32_cycles_total();
-    uint64_t calls_start = poly_ntt32_cycles_calls();
-    uint64_t intt_start = poly_invntt32_cycles_total();
-    uint64_t intt_calls_start = poly_invntt32_cycles_calls();
-    ring_mul32(r.x, &a, &s, 1, RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV, RRLWR_NTTINV_FINALCONST, RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME, rrlwr_pke_zetas);
+    ring_mul_Awin_reduce_pow2_32(vp, &bp_aw, &s_work, RRLWR_PKE_ELL,
+                                 RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
+                                 RRLWR_NTTINV_FINALCONST, RRLWR_PKE_LOGP,
+                                 rrlwr_pke_zetas);
     t[i] = cpucycles() - start - overhead;
-    ntt_t[i] = poly_ntt32_cycles_total() - ntt_start;
-    ntt_calls[i] = poly_ntt32_cycles_calls() - calls_start;
-    intt_t[i] = poly_invntt32_cycles_total() - intt_start;
-    intt_calls[i] = poly_invntt32_cycles_calls() - intt_calls_start;
   }
-  print_stage_results("ring_mul32 (1 coefficient): ", t, ntt_t, ntt_calls, intt_t, intt_calls, NUMBER_OF_TESTS);
+  print_plain_stage_results("ring_Awin_reduce_pow2_32(ell): ", t, NUMBER_OF_TESTS);
 
   for(unsigned int i=0;i<NUMBER_OF_TESTS;i++) {
     uint64_t start = cpucycles();
