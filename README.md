@@ -9,6 +9,34 @@ and then multiplied with secret vectors through AVX2 row-dot kernels in
 The benchmark data below is organized from `/home/ubuntu/compare.md`. All cycle
 counts are **medians**.
 
+---
+
+## Update 2026-05-30: Awin Sampling Breakdown
+
+`ring_uniform_Awin` should not be read as a pure sampling kernel. It includes
+three pieces of work:
+
+1. `ring_uniform_Awin_base`: generate and unpack the sampled `A` rows into the
+   Awin reversed layout.
+2. `poly_ntt32` on each sampled row.
+3. Awin twist preparation, i.e. precompute `(y+2) * a_i` for the later
+   matrix-vector dot product.
+
+Therefore `ring_uniform_Awin_base` is the closest RRLWR measurement to Kyber's
+pure `gen_matrix` sampling cost. On the same machine, the base Awin sampler is
+faster than Kyber `gen_matrix` at the comparable parameter sets:
+
+| Parameter set | `ring_uniform_Awin_base(A)` median | Kyber `gen_matrix` median |
+| --- | ---: | ---: |
+| RRLWR-128 vs Kyber512 | **3,895** | 6,502 |
+| RRLWR-256 vs Kyber1024 | **5,858** | 26,009 |
+| RRLWR-512 standalone | 11,162 | N/A |
+
+The old `sample_Awin(A)` / `ring_uniform_Awin` row remains useful, but it
+measures sampling plus NTT plus `(y+2) * a_i` precomputation, not sampling alone.
+
+---
+
 ## Test CPU
 
 CPU information was collected with `lscpu` on the benchmark machine.

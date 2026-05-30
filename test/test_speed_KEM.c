@@ -26,6 +26,7 @@
 #include "fprime.h"
 #include "poly.h"
 #include "ring.h"
+#include "uniform.h"
 #include "pke.h"
 #include "kem.h"
 
@@ -363,6 +364,10 @@ int main() {
                       RRLWR_PKE_PRIME, RRLWR_PKE_PRIMEINV,
                       RRLWR_KEM_RMODPRIME, RRLWR_KEM_2RMODPRIME,
                       rrlwr_pke_zetas));
+
+  MEASURE_PLAIN_STAGE("ring_uniform_Awin_base(A): ",
+    ring_uniform_Awin_base(&aw, RRLWR_PKE_LOGQ, seedA,
+                           RRLWR_PKE_SEED_A_LEN));
 
   MEASURE_PLAIN_STAGE("sample_secret(s): ",
     ring_uniform(&s, RRLWR_PKE_LOG_ETA+1, seedS, RRLWR_SEED_S_LEN));
