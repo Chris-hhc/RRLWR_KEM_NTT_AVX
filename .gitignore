@@ -1,0 +1,36 @@
+# Build outputs
+*.o
+*.a
+*.so
+*.d
+
+# KAT generated output files
+output/
+
+# KAT executables
+KAT/KAT_KEM128*
+KAT/KAT_KEM256*
+KAT/KAT_KEM512*
+!KAT/KAT_KEM.c
+
+# Test executables
+test/test_KEM128*
+test/test_KEM256*
+test/test_KEM512*
+test/unit_tests_KEM128*
+test/unit_tests_KEM256*
+test/unit_tests_KEM512*
+test/test_speed_KEM128*
+test/test_speed_KEM256*
+test/test_speed_KEM512*
+test/test_breakdown_KEM128*
+test/test_breakdown_KEM256*
+test/test_breakdown_KEM512*
+test/bench_poly_s_vs_c
+test/bench_awin_row_dot_*
+
+# Test source files that must remain tracked
+!test/test_KEM.c
+!test/test_speed_KEM.c
+!test/test_breakdown_KEM.c
+!test/unit_tests_KEM.c
