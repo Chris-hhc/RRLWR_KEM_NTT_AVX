@@ -30,19 +30,35 @@ fewer Montgomery reductions and fewer `vpmuldq` instructions in the inner dot
 product. The update was verified with `KAT/KAT_KEM128`,
 `KAT/KAT_KEM256`, `KAT/KAT_KEM512`, and the three functional/unit test sets.
 
+Kernel-level effect:
+
+1. The full Awin dot is now much cheaper: `ring_Awin_dot32(full)` changes from
+   4,318 / 13,938 / 51,020 cycles to 1,632 / 3,420 / 10,590 cycles for
+   RRLWR-128/256/512.
+2. The improvement carries into the full keygen/encrypt-style path:
+   `ring_Awin_round_xtoy_32(full)` changes from 10,034 / 24,279 / 71,460
+   cycles to 7,548 / 13,754 / 30,164 cycles.
+3. The `ell` path also benefits, especially at larger parameters:
+   `ring_Awin_reduce_pow2_32(ell)` changes from 4,192 / 9,299 / 23,926 cycles
+   to 3,717 / 6,894 / 13,993 cycles.
+
+For a more detailed 128-bit breakdown and attribution against Kyber512, see
+[profile_128.md](profile_128.md). For the corresponding Kyber768 breakdown,
+see [kyber768.md](kyber768.md).
+
 Median cycle measurements on the benchmark machine:
 
 | Kernel/stage | RRLWR-128 before | RRLWR-128 after | RRLWR-256 before | RRLWR-256 after | RRLWR-512 before | RRLWR-512 after |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `ring_Awin_dot32(full)` | 4,318 | **1,635** | 13,938 | **3,420** | 51,020 | **10,584** |
-| `ring_Awin_round_xtoy_32(full)` | 10,034 | **7,578** | 24,279 | **13,770** | 71,460 | **30,152** |
-| `ring_Awin_reduce_pow2_32(ell)` | 4,192 | **3,806** | 9,299 | **6,903** | 23,926 | **13,975** |
-| `pke_keygen` | 20,636 | **17,959** | 41,444 | **31,262** | 101,777 | **65,182** |
-| `pke_encrypt` | 25,552 | **22,304** | 51,057 | **38,193** | 125,341 | **83,438** |
-| `pke_decrypt` | 8,017 | **7,443** | 16,505 | **14,254** | 37,451 | **28,634** |
-| `kem_keygen` | 40,909 | **38,180** | 68,767 | **58,730** | 143,275 | **106,288** |
-| `kem_encaps` | 39,105 | **35,761** | 73,107 | **61,049** | 160,442 | **118,064** |
-| `kem_decaps` | 44,369 | **40,103** | 87,790 | **73,499** | 203,073 | **148,874** |
+| `ring_Awin_dot32(full)` | 4,318 | **1,632** | 13,938 | **3,420** | 51,020 | **10,590** |
+| `ring_Awin_round_xtoy_32(full)` | 10,034 | **7,548** | 24,279 | **13,754** | 71,460 | **30,164** |
+| `ring_Awin_reduce_pow2_32(ell)` | 4,192 | **3,717** | 9,299 | **6,894** | 23,926 | **13,993** |
+| `pke_keygen` | 20,636 | **17,824** | 41,444 | **31,403** | 101,777 | **65,027** |
+| `pke_encrypt` | 25,552 | **22,210** | 51,057 | **38,205** | 125,341 | **83,205** |
+| `pke_decrypt` | 8,017 | **7,403** | 16,505 | **14,214** | 37,451 | **28,569** |
+| `kem_keygen` | 40,909 | **38,150** | 68,767 | **58,702** | 143,275 | **106,264** |
+| `kem_encaps` | 39,105 | **35,736** | 73,107 | **60,926** | 160,442 | **117,828** |
+| `kem_decaps` | 44,369 | **40,442** | 87,790 | **73,537** | 203,073 | **148,203** |
 
 The single-row path also uses raw accumulation, which improves the `ell=1`
 RRLWR-128 decrypt-style path without hurting the larger tiled paths.
@@ -66,9 +82,9 @@ faster than Kyber `gen_matrix` at the comparable parameter sets:
 
 | Parameter set | `ring_uniform_Awin_base(A)` median | Kyber `gen_matrix` median |
 | --- | ---: | ---: |
-| RRLWR-128 vs Kyber512 | **3,895** | 6,502 |
-| RRLWR-256 vs Kyber1024 | **5,858** | 26,009 |
-| RRLWR-512 standalone | 11,162 | N/A |
+| RRLWR-128 vs Kyber512 | **3,904** | 6,502 |
+| RRLWR-256 vs Kyber1024 | **5,842** | 26,009 |
+| RRLWR-512 standalone | 11,141 | N/A |
 
 The old `sample_Awin(A)` / `ring_uniform_Awin` row remains useful, but it
 measures sampling plus NTT plus `(y+2) * a_i` precomputation, not sampling alone.
@@ -140,25 +156,25 @@ The default `Makefile` uses:
 
 | Stage | RRLWR-128 | Kyber512 | Faster |
 | --- | ---: | ---: | --- |
-| PKE keygen | 20,789 | **13,993** | Kyber512 |
-| PKE encrypt | 25,530 | **15,070** | Kyber512 |
-| PKE decrypt | 7,998 | **1,448** | Kyber512 |
+| PKE keygen | 17,824 | **13,993** | Kyber512 |
+| PKE encrypt | 22,210 | **15,070** | Kyber512 |
+| PKE decrypt | 7,403 | **1,448** | Kyber512 |
 
 ### RRLWR-256 vs Kyber1024
 
 | Stage | RRLWR-256 | Kyber1024 | Faster |
 | --- | ---: | ---: | --- |
-| PKE keygen | 41,342 | **37,638** | Kyber1024 |
-| PKE encrypt | 51,192 | **39,211** | Kyber1024 |
-| PKE decrypt | 16,499 | **2,610** | Kyber1024 |
+| PKE keygen | **31,403** | 37,638 | RRLWR-256 |
+| PKE encrypt | **38,205** | 39,211 | RRLWR-256 |
+| PKE decrypt | 14,214 | **2,610** | Kyber1024 |
 
 ### RRLWR-512 Standalone
 
 | Stage | Median cycles |
 | --- | ---: |
-| PKE keygen | 101,580 |
-| PKE encrypt | 128,917 |
-| PKE decrypt | 37,315 |
+| PKE keygen | 65,027 |
+| PKE encrypt | 83,205 |
+| PKE decrypt | 28,569 |
 
 ## KEM Stage Comparison
 
@@ -166,25 +182,25 @@ The default `Makefile` uses:
 
 | Stage | RRLWR-128 | Kyber512 | Faster |
 | --- | ---: | ---: | --- |
-| KEM keygen | 40,971 | **24,420** | Kyber512 |
-| KEM encaps | 39,009 | **25,945** | Kyber512 |
-| KEM decaps | 44,299 | **27,478** | Kyber512 |
+| KEM keygen | 38,150 | **24,420** | Kyber512 |
+| KEM encaps | 35,736 | **25,945** | Kyber512 |
+| KEM decaps | 40,442 | **27,478** | Kyber512 |
 
 ### RRLWR-256 vs Kyber1024
 
 | Stage | RRLWR-256 | Kyber1024 | Faster |
 | --- | ---: | ---: | --- |
-| KEM keygen | 68,712 | **56,310** | Kyber1024 |
-| KEM encaps | 72,947 | **57,589** | Kyber1024 |
-| KEM decaps | 87,677 | **62,062** | Kyber1024 |
+| KEM keygen | 58,702 | **56,310** | Kyber1024 |
+| KEM encaps | 60,926 | **57,589** | Kyber1024 |
+| KEM decaps | 73,537 | **62,062** | Kyber1024 |
 
 ### RRLWR-512 Standalone
 
 | Stage | Median cycles |
 | --- | ---: |
-| KEM keygen | 142,908 |
-| KEM encaps | 163,408 |
-| KEM decaps | 203,135 |
+| KEM keygen | 106,264 |
+| KEM encaps | 117,828 |
+| KEM decaps | 148,203 |
 
 ## Kernel-Level Comparison
 
@@ -192,26 +208,26 @@ The default `Makefile` uses:
 
 | RRLWR operation | RRLWR kernel | RRLWR-128 | Kyber kernel | Kyber512 | Faster |
 | --- | --- | ---: | --- | ---: | --- |
-| sample | `ring_uniform_Awin + ring_uniform` | **9,624** | `gen_matrix + poly_getnoise_eta1_4x` | 10,265 | RRLWR-128 |
-| sample A | `ring_uniform_Awin` | 7,422 | `gen_matrix` | **6,502** | Kyber512 |
-| sample secret | `ring_uniform` | **2,150** | `poly_getnoise_eta1_4x` | 3,754 | RRLWR-128 |
-| NTT | `poly_ntt32` | 549 | `poly_ntt/ntt_avx` | **230** | Kyber512 |
-| inverse NTT | `poly_invntt32` | 553 | `poly_invntt_tomont/invntt_avx` | **243** | Kyber512 |
+| sample | `ring_uniform_Awin + ring_uniform` | **9,544** | `gen_matrix + poly_getnoise_eta1_4x` | 10,265 | RRLWR-128 |
+| sample A | `ring_uniform_Awin` | 7,363 | `gen_matrix` | **6,502** | Kyber512 |
+| sample secret | `ring_uniform` | **2,077** | `poly_getnoise_eta1_4x` | 3,754 | RRLWR-128 |
+| NTT | `poly_ntt32` | 546 | `poly_ntt/ntt_avx` | **230** | Kyber512 |
+| inverse NTT | `poly_invntt32` | 562 | `poly_invntt_tomont/invntt_avx` | **243** | Kyber512 |
 | base multiplication | `poly_basemul32` | 154 | `poly_basemul_montgomery/basemul_avx` | **111** | Kyber512 |
-| Awin prepare base multiplication | `poly_basemul32_avx` | 151 | `poly_basemul_montgomery/basemul_avx` | **111** | Kyber512 |
-| accumulate multiply | `poly_basemul_add32` | **181** | `polyvec_basemul_acc_montgomery` | 255 | RRLWR-128 |
-| modular add | `poly_add32` | 31 | `poly_add` | **10** | Kyber512 |
+| Awin prepare base multiplication | `poly_basemul32_avx` | 148 | `poly_basemul_montgomery/basemul_avx` | **111** | Kyber512 |
+| accumulate multiply | `poly_basemul_add32` | **182** | `polyvec_basemul_acc_montgomery` | 255 | RRLWR-128 |
+| modular add | `poly_add32` | 28 | `poly_add` | **10** | Kyber512 |
 | raw add | `poly_add` | **10** | `poly_add` | **10** | Tie |
-| modular sub | `poly_sub32` | 31 | `poly_sub` | **10** | Kyber512 |
-| vector NTT | `ring_ntt32(s)` | 2,806 | `polyvec_ntt` | **506** | Kyber512 |
-| unpack/prepare ell input | `ring_to_Awin_ncoeffs(ell)` | 2,932 | `polyvec_decompress + polyvec_ntt` | **614** | Kyber512 |
-| unpack public-key ell input | `ring_unpack_Awin_ncoeffs(ell)` | 3,088 | `polyvec_frombytes` | **123** | Kyber512 |
-| full matrix-vector dot | `ring_Awin_dot32(full)` | 4,392 | `polyvec_basemul_acc_montgomery x K` | **522** | Kyber512 |
-| ell/scalar dot | `ring_Awin_dot32(ell)` | 942 | `polyvec_basemul_acc_montgomery x 1` | **255** | Kyber512 |
-| dot + inverse NTT + round | `ring_Awin_invntt_round_xtoy_32(full)` | 7,597 | `polyvec_basemul_acc_montgomery x K + polyvec_invntt_tomont` | **1,055** | Kyber512 |
-| NTT + dot + inverse NTT + round | `ring_Awin_round_xtoy_32(full)` | 10,310 | `polyvec_ntt + dot x K + polyvec_invntt_tomont` | **1,567** | Kyber512 |
-| dot + inverse NTT + reduce | `ring_Awin_invntt_reduce_pow2_32(ell)` | 1,567 | `polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **509** | Kyber512 |
-| NTT + dot + inverse NTT + reduce | `ring_Awin_reduce_pow2_32(ell)` | 4,285 | `polyvec_ntt + polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **1,027** | Kyber512 |
+| modular sub | `poly_sub32` | 28 | `poly_sub` | **10** | Kyber512 |
+| vector NTT | `ring_ntt32(s)` | 2,794 | `polyvec_ntt` | **506** | Kyber512 |
+| unpack/prepare ell input | `ring_to_Awin_ncoeffs(ell)` | 2,889 | `polyvec_decompress + polyvec_ntt` | **614** | Kyber512 |
+| unpack public-key ell input | `ring_unpack_Awin_ncoeffs(ell)` | 3,064 | `polyvec_frombytes` | **123** | Kyber512 |
+| full matrix-vector dot | `ring_Awin_dot32(full)` | 1,632 | `polyvec_basemul_acc_montgomery x K` | **522** | Kyber512 |
+| ell/scalar dot | `ring_Awin_dot32(ell)` | 394 | `polyvec_basemul_acc_montgomery x 1` | **255** | Kyber512 |
+| dot + inverse NTT + round | `ring_Awin_invntt_round_xtoy_32(full)` | 4,858 | `polyvec_basemul_acc_montgomery x K + polyvec_invntt_tomont` | **1,055** | Kyber512 |
+| NTT + dot + inverse NTT + round | `ring_Awin_round_xtoy_32(full)` | 7,548 | `polyvec_ntt + dot x K + polyvec_invntt_tomont` | **1,567** | Kyber512 |
+| dot + inverse NTT + reduce | `ring_Awin_invntt_reduce_pow2_32(ell)` | 1,012 | `polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **509** | Kyber512 |
+| NTT + dot + inverse NTT + reduce | `ring_Awin_reduce_pow2_32(ell)` | 3,717 | `polyvec_ntt + polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **1,027** | Kyber512 |
 
 Kyber-only supporting kernels from the same run:
 
@@ -227,26 +243,26 @@ Kyber-only supporting kernels from the same run:
 
 | RRLWR operation | RRLWR kernel | RRLWR-256 | Kyber kernel | Kyber1024 | Faster |
 | --- | --- | ---: | --- | ---: | --- |
-| sample | `ring_uniform_Awin + ring_uniform` | **14,530** | `gen_matrix + poly_getnoise_eta1_4x` | 27,932 | RRLWR-256 |
-| sample A | `ring_uniform_Awin` | **12,144** | `gen_matrix` | 26,009 | RRLWR-256 |
-| sample secret | `ring_uniform` | 2,374 | `poly_getnoise_eta1_4x` | **1,899** | Kyber1024 |
-| NTT | `poly_ntt32` | 534 | `poly_ntt/ntt_avx` | **230** | Kyber1024 |
-| inverse NTT | `poly_invntt32` | 552 | `poly_invntt_tomont/invntt_avx` | **246** | Kyber1024 |
-| base multiplication | `poly_basemul32` | 148 | `poly_basemul_montgomery/basemul_avx` | **108** | Kyber1024 |
-| Awin prepare base multiplication | `poly_basemul32_avx` | 148 | `poly_basemul_montgomery/basemul_avx` | **108** | Kyber1024 |
-| accumulate multiply | `poly_basemul_add32` | **181** | `polyvec_basemul_acc_montgomery` | 528 | RRLWR-256 |
+| sample | `ring_uniform_Awin + ring_uniform` | **14,503** | `gen_matrix + poly_getnoise_eta1_4x` | 27,932 | RRLWR-256 |
+| sample A | `ring_uniform_Awin` | **12,129** | `gen_matrix` | 26,009 | RRLWR-256 |
+| sample secret | `ring_uniform` | 2,291 | `poly_getnoise_eta1_4x` | **1,899** | Kyber1024 |
+| NTT | `poly_ntt32` | 543 | `poly_ntt/ntt_avx` | **230** | Kyber1024 |
+| inverse NTT | `poly_invntt32` | 555 | `poly_invntt_tomont/invntt_avx` | **246** | Kyber1024 |
+| base multiplication | `poly_basemul32` | 151 | `poly_basemul_montgomery/basemul_avx` | **108** | Kyber1024 |
+| Awin prepare base multiplication | `poly_basemul32_avx` | 151 | `poly_basemul_montgomery/basemul_avx` | **108** | Kyber1024 |
+| accumulate multiply | `poly_basemul_add32` | **178** | `polyvec_basemul_acc_montgomery` | 528 | RRLWR-256 |
 | modular add | `poly_add32` | 28 | `poly_add` | **13** | Kyber1024 |
-| raw add | `poly_add` | **10** | `poly_add` | 13 | RRLWR-256 |
-| modular sub | `poly_sub32` | 28 | `poly_sub` | **13** | Kyber1024 |
-| vector NTT | `ring_ntt32(s)` | 4,861 | `polyvec_ntt` | **1,022** | Kyber1024 |
-| unpack/prepare ell input | `ring_to_Awin_ncoeffs(ell)` | 5,161 | `polyvec_decompress + polyvec_ntt` | **1,417** | Kyber1024 |
+| raw add | `poly_add` | **13** | `poly_add` | **13** | Tie |
+| modular sub | `poly_sub32` | 31 | `poly_sub` | **13** | Kyber1024 |
+| vector NTT | `ring_ntt32(s)` | 4,849 | `polyvec_ntt` | **1,022** | Kyber1024 |
+| unpack/prepare ell input | `ring_to_Awin_ncoeffs(ell)` | 5,150 | `polyvec_decompress + polyvec_ntt` | **1,417** | Kyber1024 |
 | unpack public-key ell input | `ring_unpack_Awin_ncoeffs(ell)` | 5,542 | `polyvec_frombytes` | **326** | Kyber1024 |
-| full matrix-vector dot | `ring_Awin_dot32(full)` | 13,932 | `polyvec_basemul_acc_montgomery x K` | **2,128** | Kyber1024 |
-| ell/scalar dot | `ring_Awin_dot32(ell)` | 3,211 | `polyvec_basemul_acc_montgomery x 1` | **531** | Kyber1024 |
-| dot + inverse NTT + round | `ring_Awin_invntt_round_xtoy_32(full)` | 19,394 | `polyvec_basemul_acc_montgomery x K + polyvec_invntt_tomont` | **3,162** | Kyber1024 |
-| NTT + dot + inverse NTT + round | `ring_Awin_round_xtoy_32(full)` | 24,270 | `polyvec_ntt + dot x K + polyvec_invntt_tomont` | **4,205** | Kyber1024 |
-| dot + inverse NTT + reduce | `ring_Awin_invntt_reduce_pow2_32(ell)` | 4,435 | `polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **782** | Kyber1024 |
-| NTT + dot + inverse NTT + reduce | `ring_Awin_reduce_pow2_32(ell)` | 9,298 | `polyvec_ntt + polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **1,819** | Kyber1024 |
+| full matrix-vector dot | `ring_Awin_dot32(full)` | 3,420 | `polyvec_basemul_acc_montgomery x K` | **2,128** | Kyber1024 |
+| ell/scalar dot | `ring_Awin_dot32(ell)` | 856 | `polyvec_basemul_acc_montgomery x 1` | **531** | Kyber1024 |
+| dot + inverse NTT + round | `ring_Awin_invntt_round_xtoy_32(full)` | 8,891 | `polyvec_basemul_acc_montgomery x K + polyvec_invntt_tomont` | **3,162** | Kyber1024 |
+| NTT + dot + inverse NTT + round | `ring_Awin_round_xtoy_32(full)` | 13,754 | `polyvec_ntt + dot x K + polyvec_invntt_tomont` | **4,205** | Kyber1024 |
+| dot + inverse NTT + reduce | `ring_Awin_invntt_reduce_pow2_32(ell)` | 2,034 | `polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **782** | Kyber1024 |
+| NTT + dot + inverse NTT + reduce | `ring_Awin_reduce_pow2_32(ell)` | 6,894 | `polyvec_ntt + polyvec_basemul_acc_montgomery + poly_invntt_tomont` | **1,819** | Kyber1024 |
 
 Kyber-only supporting kernels from the same run:
 
@@ -262,26 +278,26 @@ Kyber-only supporting kernels from the same run:
 
 | Kernel | Median cycles |
 | --- | ---: |
-| `sample` | 27,002 |
-| `sample_Awin(A)` | 23,963 |
-| `sample_secret(s)` | 2,822 |
-| `poly_ntt32` | 549 |
-| `poly_invntt32` | 559 |
-| `poly_basemul32` | 154 |
-| `poly_basemul32_avx(Awin prepare)` | 151 |
-| `poly_basemul_add32(accumulate)` | 175 |
+| `sample` | 26,634 |
+| `sample_Awin(A)` | 23,629 |
+| `sample_secret(s)` | 2,708 |
+| `poly_ntt32` | 546 |
+| `poly_invntt32` | 549 |
+| `poly_basemul32` | 148 |
+| `poly_basemul32_avx(Awin prepare)` | 148 |
+| `poly_basemul_add32(accumulate)` | 178 |
 | `poly_add32` | 28 |
 | `poly_add` | 10 |
 | `poly_sub32` | 28 |
-| `ring_ntt32(s)` | 9,431 |
-| `ring_to_Awin_ncoeffs(ell)` | 10,460 |
-| `ring_unpack_Awin_ncoeffs(ell)` | 10,988 |
-| `ring_Awin_dot32(full, ntt-domain)` | 50,788 |
-| `ring_Awin_dot32(ell, ntt-domain)` | 11,930 |
-| `ring_Awin_invntt_round_xtoy_32(full)` | 61,760 |
-| `ring_Awin_round_xtoy_32(full)` | 71,318 |
-| `ring_Awin_invntt_reduce_pow2_32(ell)` | 14,481 |
-| `ring_Awin_reduce_pow2_32(ell)` | 23,948 |
+| `ring_ntt32(s)` | 9,231 |
+| `ring_to_Awin_ncoeffs(ell)` | 9,921 |
+| `ring_unpack_Awin_ncoeffs(ell)` | 10,703 |
+| `ring_Awin_dot32(full, ntt-domain)` | 10,590 |
+| `ring_Awin_dot32(ell, ntt-domain)` | 2,423 |
+| `ring_Awin_invntt_round_xtoy_32(full)` | 20,931 |
+| `ring_Awin_round_xtoy_32(full)` | 30,164 |
+| `ring_Awin_invntt_reduce_pow2_32(ell)` | 4,794 |
+| `ring_Awin_reduce_pow2_32(ell)` | 13,993 |
 
 ## High-Level Takeaways
 
@@ -294,10 +310,10 @@ For the current NTT AVX2 implementation, the largest remaining cycle sinks are:
 
 | Area | Evidence from tables |
 | --- | --- |
-| Full Awin dot | `ring_Awin_dot32(full)` is 4,392 / 13,932 / 50,788 cycles for RRLWR-128/256/512 |
-| NTT-domain conversion | `ring_ntt32(s)` scales from 2,806 to 9,431 cycles |
-| Fused output path | `ring_Awin_round_xtoy_32(full)` reaches 71,318 cycles at RRLWR-512 |
-| Decryption ell path | `ring_Awin_reduce_pow2_32(ell)` reaches 23,948 cycles at RRLWR-512 |
+| Full Awin dot | `ring_Awin_dot32(full)` is 1,632 / 3,420 / 10,590 cycles for RRLWR-128/256/512 |
+| NTT-domain conversion | `ring_ntt32(s)` scales from 2,794 to 9,231 cycles |
+| Fused output path | `ring_Awin_round_xtoy_32(full)` reaches 30,164 cycles at RRLWR-512 |
+| Decryption ell path | `ring_Awin_reduce_pow2_32(ell)` reaches 13,993 cycles at RRLWR-512 |
 
 ## Appendix: Kernel Operation Notes
 
